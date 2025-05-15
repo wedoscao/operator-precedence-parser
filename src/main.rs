@@ -1,8 +1,12 @@
-use std::io::{self, Write};
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+};
 
 use operator_precedence_parser::Expression;
 
 fn main() {
+    let mut map = HashMap::<char, f64>::new();
     loop {
         print!(">> ");
         if let Err(err) = io::stdout().flush() {
@@ -14,11 +18,17 @@ fn main() {
             eprintln!("Error: {}", err);
         };
 
-        if input.trim() == "exit" {
+        let input = input.trim();
+
+        if input == "exit" {
             break;
         }
 
-        let expr = match Expression::from_str(&input) {
+        if input.is_empty() {
+            continue;
+        }
+
+        let expr = match Expression::from_str(input) {
             Ok(expr) => expr,
             Err(err) => {
                 eprintln!("Error: {}", err);
@@ -26,7 +36,14 @@ fn main() {
             }
         };
 
-        match expr.eval() {
+        if expr.is_assignment() {
+            if let Err(err) = expr.assign(&mut map) {
+                eprintln!("Error: {}", err);
+            };
+            continue;
+        }
+
+        match expr.eval(&map) {
             Ok(result) => println!("{}", result),
             Err(err) => {
                 eprintln!("Error: {}", err);

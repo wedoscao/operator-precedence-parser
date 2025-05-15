@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 use crate::lexer::{self, Lexer, Token};
 use anyhow::{Result, bail};
@@ -14,15 +14,58 @@ impl Expression {
         parse_to_expression(&mut lexer, 0)
     }
 
-    pub fn eval(&self) -> Result<f64> {
+    pub fn is_assignment(&self) -> bool {
         match self {
-            Self::Atom(it) => Ok(it.parse::<f64>()?),
+            Expression::Op(op, _) => *op == '=',
+            Expression::Atom(_) => false,
+        }
+    }
+
+    pub fn assign(&self, map: &mut HashMap<char, f64>) -> Result<()> {
+        match self {
+            Expression::Atom(_) => bail!("Invalid variable"),
+            Expression::Op(_, operands) => {
+                if !self.is_assignment() {
+                    bail!("Not being an assignment")
+                };
+
+                match &operands.0 {
+                    Expression::Op(_, _) => bail!("Invalid variable"),
+                    Expression::Atom(it) => {
+                        if it.len() > 1 {
+                            bail!("Invalid variable")
+                        };
+                        if it.chars().find(|x| x.is_ascii_digit()).is_some() {
+                            bail!("Invalid variable")
+                        };
+                        let key = it.clone().pop().unwrap();
+                        map.insert(key, operands.1.eval(map)?);
+                    }
+                };
+            }
+        };
+
+        Ok(())
+    }
+
+    pub fn eval(&self, map: &HashMap<char, f64>) -> Result<f64> {
+        match self {
+            Self::Atom(it) => {
+                if it.len() > 1 || it.chars().find(|x| x.is_ascii_digit()).is_some() {
+                    return Ok(it.parse::<f64>()?);
+                }
+                let key = it.clone().pop().unwrap();
+                match map.get(&key) {
+                    Some(it) => Ok(*it),
+                    None => bail!("Variable is not assigned: {}", key),
+                }
+            }
             Self::Op(op, operands) => match op {
-                '+' => Ok(operands.0.eval()? + operands.1.eval()?),
-                '-' => Ok(operands.0.eval()? - operands.1.eval()?),
-                '*' => Ok(operands.0.eval()? * operands.1.eval()?),
-                '/' => Ok(operands.0.eval()? / operands.1.eval()?),
-                '^' => Ok(operands.0.eval()?.powf(operands.1.eval()?)),
+                '+' => Ok(operands.0.eval(map)? + operands.1.eval(map)?),
+                '-' => Ok(operands.0.eval(map)? - operands.1.eval(map)?),
+                '*' => Ok(operands.0.eval(map)? * operands.1.eval(map)?),
+                '/' => Ok(operands.0.eval(map)? / operands.1.eval(map)?),
+                '^' => Ok(operands.0.eval(map)?.powf(operands.1.eval(map)?)),
                 _ => bail!("Unknown operator: {}", op),
             },
         }
@@ -51,6 +94,9 @@ fn parse_to_expression(lexer: &mut Lexer, min_bq: u8) -> Result<Expression> {
             Expression::Atom(it)
         }
         Token::Op(op) => {
+            if op != '+' || op != '-' {
+                bail!("Bad token: {}", op)
+            }
             let mut it = op.to_string();
             handle_op_lhs(lexer, &mut it)?;
             Expression::Atom(it)
@@ -139,5 +185,20 @@ mod test_parser {
     #[test]
     fn test_6() {
         test_pattern("1.1", "1.1");
+    }
+
+    #[test]
+    fn test_7() {
+        test_pattern("111", "111");
+    }
+
+    #[test]
+    fn test_8() {
+        test_pattern("a=1+4+9", "(=(a (+((+(1 4)) 9))))");
+    }
+
+    #[test]
+    fn test_9() {
+        test_pattern("a", "a");
     }
 }

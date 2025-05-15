@@ -19,7 +19,7 @@ impl Lexer {
             .filter(|c| !c.is_whitespace())
             .map(|c| match c {
                 '0'..='9' | 'a'..='z' | 'A'..='Z' | '.' => Ok(Token::Atom(c)),
-                '+' | '-' | '*' | '/' | '^' => Ok(Token::Op(c)),
+                '+' | '-' | '*' | '/' | '^' | '=' => Ok(Token::Op(c)),
                 c => bail!("Bad character: {}", c),
             })
             .collect::<Result<Vec<Token>>>()?;
@@ -38,9 +38,10 @@ impl Lexer {
 
 pub fn get_bq(op: char) -> Result<u8> {
     match op {
-        '+' | '-' => Ok(1),
-        '*' | '/' => Ok(2),
-        '^' => Ok(3),
+        '=' => Ok(1),
+        '+' | '-' => Ok(2),
+        '*' | '/' => Ok(3),
+        '^' => Ok(4),
         _ => bail!("Unknown operator: {}", op),
     }
 }
